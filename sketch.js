@@ -79,7 +79,7 @@ function getDominantExpression(expressions) {
 
 
 // ----------------------------------------
-// 5. P5.js 그리기 루프 (게임의 핵심)
+// 5. P5.js 그리기 루프
 // ----------------------------------------
 function draw() {
     // 캔버스를 검은색으로
@@ -138,9 +138,9 @@ function runGame() {
     // 4. UI 그리기 (점수, 현재 표정)
     fill(255);
     textSize(30);
-    textAlign(LEFT, TOP);
-    text(`Score: ${score}`, 20, 20);
-    text(`State: ${currentExpression}`, 20, 60);
+    textAlign(RIGHT, TOP); // ★★★ 변경: LEFT -> RIGHT
+    text(`Score: ${score}`, width - 20, 20); // ★★★ 변경: 20 -> width - 20
+    text(`State: ${currentExpression}`, width - 20, 60); // ★★★ 변경: 20 -> width - 20
 }
 
 /** 'start' 상태일 때 시작 화면 그리기 */
@@ -163,7 +163,7 @@ function showGameOverScreen() {
 }
 
 // ----------------------------------------
-// 6. 게임 상태 관리 함수 (★ 중요 ★)
+// 6. 게임 상태 관리 함수
 // ----------------------------------------
 
 /** p5.js 내장 함수: 키보드가 눌렸을 때 호출됨 */
@@ -197,7 +197,7 @@ function gameOver() {
 
 
 // ----------------------------------------
-// 7. Player 클래스 (변경 없음)
+// 7. Player 클래스
 // ----------------------------------------
 class Player {
     constructor() {
@@ -259,7 +259,7 @@ class Player {
 
 
 // ----------------------------------------
-// 8. Obstacle 클래스 (변경 없음)
+// 8. Obstacle 클래스
 // ----------------------------------------
 class Obstacle {
     constructor() {
