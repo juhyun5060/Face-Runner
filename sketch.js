@@ -5,7 +5,6 @@ let faceapi;
 let video;
 let detections = [];
 
-// 기존과 동일하게, descriptors가 true여야 expressions가 나옵니다.
 const detection_options = {
     withLandmarks: true,
     withDescriptors: true,
@@ -18,9 +17,12 @@ const detection_options = {
 let player;
 let obstacles = [];
 let score = 0;
-let currentExpression = 'neutral'; // 현재 플레이어 표정
-let gameRunning = true;
+let currentExpression = 'neutral';
 let groundY; // 땅 높이
+
+// ★★★★★ 새로 추가된 변수 ★★★★★
+// 'start': 시작 대기, 'playing': 게임 중, 'gameOver': 게임 오버
+let gameState = 'start'; 
 
 // ----------------------------------------
 // 3. P5.js & ML5.js 설정 함수
@@ -45,39 +47,27 @@ function modelReady() {
 }
 
 // ----------------------------------------
-// 4. ML5.js 결과 처리 (가장 중요!)
+// 4. ML5.js 결과 처리
 // ----------------------------------------
 function gotResults(err, result) {
     if (err) {
         console.error(err);
-        faceapi.detect(gotResults); // 에러가 나도 계속 시도
+        faceapi.detect(gotResults);
         return;
     }
 
-    // 얼굴을 감지했을 때만
     if (result && result.length > 0) {
         const expressions = result[0].expressions;
-        // 가장 점수가 높은 표정을 현재 상태로 저장
         currentExpression = getDominantExpression(expressions);
     } else {
-        // 얼굴 감지 못하면 'neutral'
         currentExpression = 'neutral';
     }
-
-    // 계속 반복 감지
     faceapi.detect(gotResults);
 }
 
-/**
- * 표정 객체에서 가장 점수가 높은 표정의 이름을 반환하는 헬퍼 함수
- * @param {object} expressions - {happy: 0.1, sad: 0.8, ...}
- * @returns {string} - "happy", "sad" 등 가장 높은 점수의 표정 이름
- */
 function getDominantExpression(expressions) {
     let maxScore = 0;
     let dominantExpression = 'neutral';
-
-    // Object.entries로 객체를 순회하며 [key, value] 쌍을 찾음
     for (const [expression, score] of Object.entries(expressions)) {
         if (score > maxScore) {
             maxScore = score;
@@ -102,27 +92,24 @@ function draw() {
     image(video, 0, 0, 160, 120);
     pop();
     
-    // 땅 그리기
+    // 땅 그리기 (항상 그림)
     fill(100);
     noStroke();
     rect(0, groundY, width, height - groundY);
 
-    if (!gameRunning) {
-        // 게임 오버 화면
-        fill(255, 0, 0);
-        textAlign(CENTER, CENTER);
-        textSize(50);
-        text("GAME OVER", width / 2, height / 2 - 40);
-        textSize(30);
-        text(`Score: ${score}`, width / 2, height / 2 + 20);
-        text("Refresh to restart", width / 2, height / 2 + 70);
-        return; // 게임 오버 시 여기서 draw() 종료
+    // ★★★★★ 게임 상태에 따라 다른 화면 그리기 ★★★★★
+    if (gameState === 'playing') {
+        runGame(); // 게임 실행 로직
+    } else if (gameState === 'start') {
+        showStartScreen(); // 시작 화면
+    } else if (gameState === 'gameOver') {
+        showGameOverScreen(); // 게임 오버 화면
     }
+}
 
-    // --- 게임 실행 중 로직 ---
-
+/** 'playing' 상태일 때 실행되는 게임 로직 */
+function runGame() {
     // 1. 장애물 생성
-    // 100 프레임마다 (약 1.5초) 50% 확률로 장애물 생성
     if (frameCount % 100 === 0 && random(1) < 0.5) {
         obstacles.push(new Obstacle());
     }
@@ -133,22 +120,20 @@ function draw() {
         obs.update();
         obs.show();
 
-        // (A) 플레이어와 충돌했는지 확인
         if (obs.hits(player)) {
-            gameOver();
+            gameOver(); // ★★★ 충돌 시 gameOver() 호출
         }
 
-        // (B) 화면 밖으로 나갔는지 확인
         if (obs.isOffscreen()) {
-            obstacles.splice(i, 1); // 배열에서 제거
-            score++; // 점수 획득
+            obstacles.splice(i, 1);
+            score++;
         }
     }
 
     // 3. 플레이어 상태 업데이트 (표정에 따라)
     player.setState(currentExpression);
-    player.update(); // 플레이어 물리 적용 (점프 등)
-    player.show(); // 플레이어 그리기
+    player.update();
+    player.show();
 
     // 4. UI 그리기 (점수, 현재 표정)
     fill(255);
@@ -158,150 +143,159 @@ function draw() {
     text(`State: ${currentExpression}`, 20, 60);
 }
 
+/** 'start' 상태일 때 시작 화면 그리기 */
+function showStartScreen() {
+    fill(255);
+    textAlign(CENTER, CENTER);
+    textSize(50);
+    text("Press ENTER to Start", width / 2, height / 2);
+}
+
+/** 'gameOver' 상태일 때 게임 오버 화면 그리기 */
+function showGameOverScreen() {
+    fill(255, 0, 0);
+    textAlign(CENTER, CENTER);
+    textSize(50);
+    text("GAME OVER", width / 2, height / 2 - 40);
+    textSize(30);
+    text(`Score: ${score}`, width / 2, height / 2 + 20);
+    text("Press ENTER to Restart", width / 2, height / 2 + 70);
+}
+
+// ----------------------------------------
+// 6. 게임 상태 관리 함수 (★ 중요 ★)
+// ----------------------------------------
+
+/** p5.js 내장 함수: 키보드가 눌렸을 때 호출됨 */
+function keyPressed() {
+    // 엔터키(keyCode 13)가 눌렸을 때
+    if (keyCode === ENTER) {
+        // 시작 화면이거나 게임 오버 화면이면, 게임을 시작/재시작
+        if (gameState === 'start' || gameState === 'gameOver') {
+            startGame();
+        }
+    }
+}
+
+/** 게임을 시작/재시작하는 함수 */
+function startGame() {
+    // 모든 변수 초기화
+    obstacles = [];
+    score = 0;
+    player = new Player(); // 플레이어 재설정
+    currentExpression = 'neutral';
+    
+    // 게임 상태를 'playing'으로 변경
+    gameState = 'playing';
+}
+
+/** 게임 오버 처리 함수 */
 function gameOver() {
-    gameRunning = false;
+    gameState = 'gameOver'; // 상태 변경
     console.log("GAME OVER");
-    // noLoop(); // noLoop() 대신 플래그 사용
 }
 
 
 // ----------------------------------------
-// 6. Player 클래스 (플레이어 객체)
+// 7. Player 클래스 (변경 없음)
 // ----------------------------------------
 class Player {
     constructor() {
-        this.w = 50; // 너비
-        this.h_normal = 80; // 기본 높이
-        this.h_duck = 40; // 숙였을 때 높이
-        this.h = this.h_normal; // 현재 높이
-
-        this.x = 50; // X위치 (고정)
-        this.y = groundY; // Y위치 (땅에서 시작)
-        this.vy = 0; // Y방향 속도 (점프용)
+        this.w = 50;
+        this.h_normal = 80;
+        this.h_duck = 40;
+        this.h = this.h_normal;
+        this.x = 50;
+        this.y = groundY;
+        this.vy = 0;
         this.gravity = 0.8;
         this.jumpForce = -18;
-        
-        this.state = 'running'; // 'running', 'jumping', 'ducking'
+        this.state = 'running';
     }
-
-    /** 표정에 따라 플레이어 상태 변경 */
     setState(expression) {
-        // 점프 중일 때는 숙일 수 없음
         if (this.isOnGround()) {
-            // JUMP: happy, surprised
             if (expression === 'happy' || expression === 'surprised') {
                 this.jump();
                 this.state = 'jumping';
             }
-            // DUCK: sad, angry, fearful, disgusted
             else if (['sad', 'angry', 'fearful', 'disgusted'].includes(expression)) {
                 this.state = 'ducking';
             }
-            // RUN: neutral
             else {
                 this.state = 'running';
             }
         }
     }
-    
-    /** 점프 실행 */
     jump() {
         if (this.isOnGround()) {
             this.vy = this.jumpForce;
         }
     }
-
-    /** 땅에 있는지 확인 */
     isOnGround() {
         return this.y >= groundY;
     }
-
-    /** 매 프레임 물리 업데이트 */
     update() {
-        // 중력 적용
         this.y += this.vy;
         this.vy += this.gravity;
-
-        // 땅에 닿으면 멈춤
         if (this.y > groundY) {
             this.y = groundY;
             this.vy = 0;
-            // 점프가 끝났고, 표정이 'duck'이 아니면 'running'으로 복귀
             if (this.state === 'jumping' && currentExpression !== 'duck') {
                  this.state = 'running';
             }
         }
-        
-        // 상태에 따라 높이 조절
         if (this.state === 'ducking' && this.isOnGround()) {
             this.h = this.h_duck;
         } else {
             this.h = this.h_normal;
         }
     }
-
-    /** 플레이어 그리기 */
     show() {
-        fill(0, 150, 255); // 파란색
+        fill(0, 150, 255);
         noStroke();
-        // y좌표가 발끝 기준이므로, (y - 현재 높이)로 사각형을 그림
         rect(this.x, this.y - this.h, this.w, this.h);
     }
 }
 
 
 // ----------------------------------------
-// 7. Obstacle 클래스 (장애물 객체)
+// 8. Obstacle 클래스 (변경 없음)
 // ----------------------------------------
 class Obstacle {
     constructor() {
-        this.x = width; // 화면 오른쪽 끝에서 시작
+        this.x = width;
         this.w = 40;
         this.speed = 7;
-        
-        // 장애물 타입 (low: 점프해서 피함, high: 숙여서 피함)
         if (random(1) > 0.5) {
             this.type = 'low';
             this.h = 60;
-            this.y = groundY - this.h; // 땅에 붙어있음
+            this.y = groundY - this.h;
         } else {
             this.type = 'high';
             this.h = 50;
-            this.y = groundY - 100; // 플레이어가 숙여서 피할 높이
+            this.y = groundY - 100;
         }
     }
-
-    /** 매 프레임 왼쪽으로 이동 */
     update() {
         this.x -= this.speed;
     }
-
-    /** 장애물 그리기 */
     show() {
-        fill(255, 0, 0); // 빨간색
+        fill(255, 0, 0);
         noStroke();
         rect(this.x, this.y, this.w, this.h);
     }
-
-    /** 화면 밖으로 나갔는지 */
     isOffscreen() {
         return this.x < -this.w;
     }
-
-    /** 플레이어와 충돌했는지 (AABB 충돌 감지) */
     hits(player) {
-        // 플레이어의 실제 y 위치 (상단)
         let playerTop = player.y - player.h;
         let playerBottom = player.y;
         let playerLeft = player.x;
         let playerRight = player.x + player.w;
-
         let obsTop = this.y;
         let obsBottom = this.y + this.h;
         let obsLeft = this.x;
         let obsRight = this.x + this.w;
-
-        // AABB (Axis-Aligned Bounding Box) 충돌 검사
         return (playerRight > obsLeft &&
                 playerLeft < obsRight &&
                 playerBottom > obsTop &&
