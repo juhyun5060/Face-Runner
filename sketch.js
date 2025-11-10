@@ -138,9 +138,9 @@ function runGame() {
     // 4. UI 그리기 (점수, 현재 표정)
     fill(255);
     textSize(30);
-    textAlign(RIGHT, TOP); // ★★★ 변경: LEFT -> RIGHT
-    text(`Score: ${score}`, width - 20, 20); // ★★★ 변경: 20 -> width - 20
-    text(`State: ${currentExpression}`, width - 20, 60); // ★★★ 변경: 20 -> width - 20
+    textAlign(RIGHT, TOP);
+    text(`Score: ${score}`, width - 20, 20);
+    text(`State: ${currentExpression}`, width - 20, 60);
 }
 
 /** 'start' 상태일 때 시작 화면 그리기 */
